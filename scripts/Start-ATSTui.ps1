@@ -335,152 +335,158 @@ function Show-PendingReview {
 }
 
 function Add-ManualCommitment {
-    Clear-Tui
-    Write-Title -Text 'Add a commitment'
-    Write-Host '[1] By you -> stakeholder'
-    Write-Host '[2] To you <- stakeholder'
-    Write-Host '[Q] Cancel'
-    $directionChoice = Read-TuiChoice -Prompt 'Direction: ' -Allowed @('1', '2', 'q')
-    if ($directionChoice -eq 'q') { return }
+    while ($true) {
+        Clear-Tui
+        Write-Title -Text 'Add a commitment'
+        Write-Host '[1] By you -> stakeholder'
+        Write-Host '[2] To you <- stakeholder'
+        Write-Host '[Q] Main menu'
+        $directionChoice = Read-TuiChoice -Prompt 'Direction: ' -Allowed @('1', '2', 'q')
+        if ($directionChoice -eq 'q') { return }
 
-    $direction = if ($directionChoice -eq '1') { 'me_to_stakeholder' } else { 'stakeholder_to_me' }
-    $stakeholder = (Read-Host 'Stakeholder').Trim()
-    if ([string]::IsNullOrWhiteSpace($stakeholder)) {
-        Write-Host 'Stakeholder is required.' -ForegroundColor Red
-        Wait-Tui
-        return
-    }
-    $commitment = (Read-Host 'Commitment').Trim()
-    if ([string]::IsNullOrWhiteSpace($commitment)) {
-        Write-Host 'Commitment is required.' -ForegroundColor Red
-        Wait-Tui
-        return
-    }
+        $direction = if ($directionChoice -eq '1') { 'me_to_stakeholder' } else { 'stakeholder_to_me' }
+        $stakeholder = (Read-Host 'Stakeholder').Trim()
+        if ([string]::IsNullOrWhiteSpace($stakeholder)) {
+            Write-Host 'Stakeholder is required.' -ForegroundColor Red
+            Wait-Tui -Message 'Press any key to try again'
+            continue
+        }
+        $commitment = (Read-Host 'Commitment').Trim()
+        if ([string]::IsNullOrWhiteSpace($commitment)) {
+            Write-Host 'Commitment is required.' -ForegroundColor Red
+            Wait-Tui -Message 'Press any key to try again'
+            continue
+        }
 
-    $now = [datetimeoffset]::Now.ToOffset($script:PerthOffset)
-    $commitmentDate = Read-DateValue -Prompt 'Commitment date' -Default $now.ToString('yyyy-MM-dd')
-    $dueDate = Read-DateValue -Prompt 'Due date' -AllowBlank
-
-    Clear-Tui
-    Write-Title -Text 'Confirm new commitment'
-    Write-Label -Name 'Direction' -Value $(if ($direction -eq 'me_to_stakeholder') { 'By you' } else { 'To you' })
-    Write-Label -Name 'Stakeholder' -Value $stakeholder
-    Write-Label -Name 'Committed' -Value $commitmentDate
-    Write-Label -Name 'Due' -Value $(if ($dueDate) { $dueDate } else { 'Not specified' })
-    Write-Host ''
-    Write-Host $commitment
-    Write-Host ''
-    $choice = Read-TuiChoice -Prompt 'Add this commitment? [Y/N] ' -Allowed @('y', 'n')
-    if ($choice -ne 'y') { return }
-
-    $timestamp = $now.ToString('o')
-    $proposalArguments = @{
-        Action = 'add'
-        Kind = 'add'
-        Direction = $direction
-        Stakeholder = $stakeholder
-        Commitment = $commitment
-        CommitmentDate = $commitmentDate
-        DueDate = $dueDate
-        SourceType = 'manual_entry'
-        SourceDatetime = $timestamp
-        Evidence = 'Entered and confirmed manually in the ATS TUI.'
-        Checkpoint = $timestamp
-        RootPath = $script:RootPath
-    }
-    $proposalOutput = @(& $script:ProposalPath @proposalArguments) -join [Environment]::NewLine
-    $proposalResult = $proposalOutput | ConvertFrom-Json
-    if ($proposalResult.result -eq 'suppressed_rejection') {
-        Write-Host 'This exact commitment was recently rejected and was not re-added.' -ForegroundColor Yellow
-        Wait-Tui
-        return
-    }
-
-    $proposal = $proposalResult.proposal
-    if ($proposal.status -eq 'applied') {
-        Write-Host 'This commitment is already in the register.' -ForegroundColor Yellow
-        Wait-Tui
-        return
-    }
-    if ($proposal.status -ne 'pending') {
-        throw "The matching proposal is '$($proposal.status)' and cannot be applied."
-    }
-
-    $applied = Invoke-DecisionBatch -Approve @($proposal.proposal_id)
-    Write-Host ("Added. Audit: {0}" -f $applied.audit_id) -ForegroundColor Green
-    Wait-Tui
-}
-
-function Complete-ManualCommitment {
-    $result = Get-ATSJson -Command 'open'
-    $items = @($result.commitments)
-    Clear-Tui
-    Write-Title -Text 'Mark a commitment completed'
-    if ($items.Count -eq 0) {
-        Write-Host 'No open commitments.' -ForegroundColor Green
-        Wait-Tui
-        return
-    }
-
-    for ($index = 0; $index -lt $items.Count; $index += 1) {
-        $item = $items[$index]
-        Write-Host ("{0,2}. {1} | {2}" -f ($index + 1), $item.stakeholder, $item.commitment)
-    }
-    Write-Host ''
-    $selection = (Read-Host 'Number to complete, or Q to cancel').Trim()
-    if ($selection -eq 'q') { return }
-    $number = 0
-    if (-not [int]::TryParse($selection, [ref]$number) -or $number -lt 1 -or $number -gt $items.Count) {
-        Write-Host 'Invalid selection.' -ForegroundColor Red
-        Wait-Tui
-        return
-    }
-
-    $selected = $items[$number - 1]
-    Write-Host ''
-    Write-Host $selected.commitment -ForegroundColor White
-    $choice = Read-TuiChoice -Prompt 'Mark this completed? [Y/N] ' -Allowed @('y', 'n')
-    if ($choice -ne 'y') { return }
-
-    $queue = Get-Content -LiteralPath (Join-Path $script:RootPath 'state\pending-proposals.json') -Raw | ConvertFrom-Json
-    $existingClose = $queue.proposals | Where-Object {
-        $_.status -eq 'pending' -and $_.kind -eq 'close' -and $_.target_commitment_id -eq $selected.commitment_id
-    } | Select-Object -First 1
-
-    if ($null -ne $existingClose) {
-        $proposalId = $existingClose.proposal_id
-    }
-    else {
         $now = [datetimeoffset]::Now.ToOffset($script:PerthOffset)
+        $commitmentDate = Read-DateValue -Prompt 'Commitment date' -Default $now.ToString('yyyy-MM-dd')
+        $dueDate = Read-DateValue -Prompt 'Due date' -AllowBlank
+
+        Clear-Tui
+        Write-Title -Text 'Confirm new commitment'
+        Write-Label -Name 'Direction' -Value $(if ($direction -eq 'me_to_stakeholder') { 'By you' } else { 'To you' })
+        Write-Label -Name 'Stakeholder' -Value $stakeholder
+        Write-Label -Name 'Committed' -Value $commitmentDate
+        Write-Label -Name 'Due' -Value $(if ($dueDate) { $dueDate } else { 'Not specified' })
+        Write-Host ''
+        Write-Host $commitment
+        Write-Host ''
+        $choice = Read-TuiChoice -Prompt 'Add this commitment? [Y/N] ' -Allowed @('y', 'n')
+        if ($choice -ne 'y') { continue }
+
         $timestamp = $now.ToString('o')
         $proposalArguments = @{
             Action = 'add'
-            Kind = 'close'
-            Direction = $selected.direction
-            Stakeholder = $selected.stakeholder
-            Commitment = "Mark $($selected.commitment) as completed"
-            CommitmentDate = $now.ToString('yyyy-MM-dd')
-            DueDate = $selected.due_date
-            TargetCommitmentId = $selected.commitment_id
+            Kind = 'add'
+            Direction = $direction
+            Stakeholder = $stakeholder
+            Commitment = $commitment
+            CommitmentDate = $commitmentDate
+            DueDate = $dueDate
             SourceType = 'manual_entry'
             SourceDatetime = $timestamp
-            Evidence = 'Marked completed and confirmed manually in the ATS TUI.'
+            Evidence = 'Entered and confirmed manually in the ATS TUI.'
             Checkpoint = $timestamp
             RootPath = $script:RootPath
         }
         $proposalOutput = @(& $script:ProposalPath @proposalArguments) -join [Environment]::NewLine
         $proposalResult = $proposalOutput | ConvertFrom-Json
         if ($proposalResult.result -eq 'suppressed_rejection') {
-            Write-Host 'This completion was recently rejected and was not applied.' -ForegroundColor Yellow
+            Write-Host 'This exact commitment was recently rejected and was not re-added.' -ForegroundColor Yellow
+            Wait-Tui -Message 'Press any key to add another commitment'
+            continue
+        }
+
+        $proposal = $proposalResult.proposal
+        if ($proposal.status -eq 'applied') {
+            Write-Host 'This commitment is already in the register.' -ForegroundColor Yellow
+            Wait-Tui -Message 'Press any key to add another commitment'
+            continue
+        }
+        if ($proposal.status -ne 'pending') {
+            throw "The matching proposal is '$($proposal.status)' and cannot be applied."
+        }
+
+        $applied = Invoke-DecisionBatch -Approve @($proposal.proposal_id)
+        Write-Host ("Added. Audit: {0}" -f $applied.audit_id) -ForegroundColor Green
+        $nextChoice = Read-TuiChoice -Prompt '[A] Add another  [Q] Main menu: ' -Allowed @('a', 'q')
+        if ($nextChoice -eq 'q') { return }
+    }
+}
+
+function Complete-ManualCommitment {
+    while ($true) {
+        $result = Get-ATSJson -Command 'open'
+        $items = @($result.commitments)
+        Clear-Tui
+        Write-Title -Text 'Mark a commitment completed'
+        if ($items.Count -eq 0) {
+            Write-Host 'No open commitments.' -ForegroundColor Green
             Wait-Tui
             return
         }
-        $proposalId = $proposalResult.proposal.proposal_id
-    }
 
-    $applied = Invoke-DecisionBatch -Approve @($proposalId)
-    Write-Host ("Completed. Audit: {0}" -f $applied.audit_id) -ForegroundColor Green
-    Wait-Tui
+        for ($index = 0; $index -lt $items.Count; $index += 1) {
+            $item = $items[$index]
+            Write-Host ("{0,2}. {1} | {2}" -f ($index + 1), $item.stakeholder, $item.commitment)
+        }
+        Write-Host ''
+        $selection = (Read-Host 'Number to complete, or Q for main menu').Trim()
+        if ($selection -eq 'q') { return }
+        $number = 0
+        if (-not [int]::TryParse($selection, [ref]$number) -or $number -lt 1 -or $number -gt $items.Count) {
+            Write-Host 'Invalid selection.' -ForegroundColor Red
+            Wait-Tui -Message 'Press any key to try again'
+            continue
+        }
+
+        $selected = $items[$number - 1]
+        Write-Host ''
+        Write-Host $selected.commitment -ForegroundColor White
+        $choice = Read-TuiChoice -Prompt 'Mark this completed? [Y/N] ' -Allowed @('y', 'n')
+        if ($choice -ne 'y') { continue }
+
+        $queue = Get-Content -LiteralPath (Join-Path $script:RootPath 'state\pending-proposals.json') -Raw | ConvertFrom-Json
+        $existingClose = $queue.proposals | Where-Object {
+            $_.status -eq 'pending' -and $_.kind -eq 'close' -and $_.target_commitment_id -eq $selected.commitment_id
+        } | Select-Object -First 1
+
+        if ($null -ne $existingClose) {
+            $proposalId = $existingClose.proposal_id
+        }
+        else {
+            $now = [datetimeoffset]::Now.ToOffset($script:PerthOffset)
+            $timestamp = $now.ToString('o')
+            $proposalArguments = @{
+                Action = 'add'
+                Kind = 'close'
+                Direction = $selected.direction
+                Stakeholder = $selected.stakeholder
+                Commitment = "Mark $($selected.commitment) as completed"
+                CommitmentDate = $now.ToString('yyyy-MM-dd')
+                DueDate = $selected.due_date
+                TargetCommitmentId = $selected.commitment_id
+                SourceType = 'manual_entry'
+                SourceDatetime = $timestamp
+                Evidence = 'Marked completed and confirmed manually in the ATS TUI.'
+                Checkpoint = $timestamp
+                RootPath = $script:RootPath
+            }
+            $proposalOutput = @(& $script:ProposalPath @proposalArguments) -join [Environment]::NewLine
+            $proposalResult = $proposalOutput | ConvertFrom-Json
+            if ($proposalResult.result -eq 'suppressed_rejection') {
+                Write-Host 'This completion was recently rejected and was not applied.' -ForegroundColor Yellow
+                Wait-Tui -Message 'Press any key to choose another commitment'
+                continue
+            }
+            $proposalId = $proposalResult.proposal.proposal_id
+        }
+
+        $applied = Invoke-DecisionBatch -Approve @($proposalId)
+        Write-Host ("Completed. Audit: {0}" -f $applied.audit_id) -ForegroundColor Green
+        $nextChoice = Read-TuiChoice -Prompt '[C] Complete another  [Q] Main menu: ' -Allowed @('c', 'q')
+        if ($nextChoice -eq 'q') { return }
+    }
 }
 
 function Show-ScanStatus {

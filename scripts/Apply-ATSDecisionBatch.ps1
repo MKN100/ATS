@@ -149,15 +149,20 @@ function ConvertTo-RegisterLines {
 function Assert-Register {
     param([Parameter(Mandatory)][string]$Path)
 
+    $header = Get-Content -LiteralPath $Path -TotalCount 1
+    if ([string]$header -ne ($columns -join ',')) {
+        throw 'The commitment register header does not match the fixed schema.'
+    }
+
     $rows = @(Import-Csv -LiteralPath $Path)
     if ($rows.Count -eq 0) {
-        throw 'The commitment register has no rows.'
+        return @()
     }
     $actualColumns = @($rows[0].PSObject.Properties.Name)
     if (($actualColumns -join '|') -ne ($columns -join '|')) {
         throw 'The commitment register header does not match the fixed schema.'
     }
-    if (($rows.commitment_id | Sort-Object -Unique).Count -ne $rows.Count) {
+    if (@($rows.commitment_id | Sort-Object -Unique).Count -ne $rows.Count) {
         throw 'The commitment register contains duplicate IDs.'
     }
     if (@($rows | Where-Object direction -notin @('me_to_stakeholder', 'stakeholder_to_me')).Count -gt 0) {
