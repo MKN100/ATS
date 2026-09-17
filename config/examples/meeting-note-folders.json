@@ -1,0 +1,15 @@
+{
+  "format_version": 1,
+  "description": "Folders containing Markdown meeting notes that ATS may scan.",
+  "folders": [
+    {
+      "id": "example-workstream",
+      "path": "C:\\Workstreams\\example-workstream\\Meeting Notes",
+      "enabled": false,
+      "include": [
+        "**/*.md"
+      ],
+      "exclude": []
+    }
+  ]
+}

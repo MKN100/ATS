@@ -1,0 +1,7 @@
+{
+  "format_version": 1,
+  "timezone": "Australia/Perth",
+  "checkpoint_interval_minutes": 120,
+  "checkpoint_anchor_local": "00:30",
+  "overlap_minutes": 30
+}

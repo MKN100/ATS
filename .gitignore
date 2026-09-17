@@ -1,0 +1,25 @@
+# Private ATS data and runtime state
+/data/*
+!/data/.gitkeep
+/state/
+/backups/
+/work/
+
+# Local prototypes and personal migration material
+/automation/
+/cloud/
+/scripts/Send-ATSOpenCommitmentsEmail.ps1
+/scripts/Start-ATSWeeklyEmail.ps1
+/tests/Test-ATSWeeklyEmail.ps1
+
+# Local design artifacts and generated output
+/*.vsdx
+*.html
+*.log
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+Desktop.ini
+.vscode/
+.idea/
